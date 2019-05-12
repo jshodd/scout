@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"bytes"
 	"syscall"
 )
 
@@ -115,12 +116,10 @@ func enumeratePorts(target string, scan *nmap.NmapRun) {
 			gobusterScan(target, id, "http")
 			gobusterCGIScan(target, id, "http")
 			niktoScan(target, id, "http")
-			vhostScan(target, id, "http")
 		case id == "443" || name == "https":
 			gobusterScan(target, id, "https")
 			gobusterCGIScan(target, id, "https")
 			niktoScan(target, id, "https")
-			vhostScan(target, id, "https")
 		case id == "139" || id == "445" || name == "smb" || name == "netbios-ssn":
 			if !smbScanned {
 				smbScan(target)
@@ -185,45 +184,43 @@ func nmapScan(target string) (*nmap.NmapRun, error) {
 
 func gobusterScan(target string, port string, protocol string) {
 	var (
-		cmdOut []byte
 		err error
 	)
 	path := filepath.Join("./targets", target, "scans", target+"_"+port+"_gobuster.txt")
 	cmd := "gobuster"
-	args := []string{"-w", "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt", "-u", protocol + "://" + target + ":" + port, "-s", "'200,204,301,302,307,403,500'", "-e", "-k", "-t", "50"}
+	args := []string{"-w", "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt", "-u", protocol + "://" + target + ":" + port, "-s", "200,204,301,302,307,403,500", "-e", "-k", "-t", "50", "-np", "-o", path}
 	fmt.Printf("Starting the following scan: %s %s\n", cmd, strings.Join(args[:], " "))
-	if cmdOut, err = exec.Command(cmd, args...).Output(); err != nil {
-		fmt.Println(string(cmdOut))
-		fmt.Fprintln(os.Stderr, err)
-		return
-	}
-	fmt.Println(string(cmdOut))
-	err = ioutil.WriteFile(path, cmdOut, 0777)
+	command := exec.Command(cmd, args...)
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	command.Stdout = &out
+	command.Stderr = &stderr
+	err = command.Run()
 	if err != nil {
-		fmt.Println("couldn't write gobuster file")
+		fmt.Println("Hit an issue")
+		fmt.Println(fmt.Sprint(err)+": "+stderr.String())
 		return
 	}
-
 	fmt.Println("Finished Gobuster Scan")
 }
 
 func gobusterCGIScan(target string, port string, protocol string) {
 	var (
-		cmdOut []byte
 		err error
 	)
 	path := filepath.Join("./targets", target, "scans", target+"_"+port+"_cgi_gobuster.txt")
 	cmd := "gobuster"
-	args := []string{"-w", "/usr/share/seclists/Discovery/Web-Content/CGIs.txt", "-u", protocol + "://" + target + ":" + port, "-s", "'200,204,301,302,307,403,500'", "-e", "-k", "-t", "50"}
+	args := []string{"-w", "/usr/share/seclists/Discovery/Web-Content/CGIs.txt", "-u", protocol + "://" + target + ":" + port, "-s", "200,204,301,302,307,403,500", "-e", "-k", "-t", "50", "-np", "-o", path}
 	fmt.Printf("Starting the following scan: %s %s\n", cmd, strings.Join(args[:], " "))
-	if cmdOut, err = exec.Command(cmd, args...).Output(); err != nil {
-		fmt.Println(string(cmdOut))
-		fmt.Fprintln(os.Stderr, err)
-		return
-	}
-	err = ioutil.WriteFile(path, cmdOut, 0777)
+	command := exec.Command(cmd, args...)
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	command.Stdout = &out
+	command.Stderr = &stderr
+	err = command.Run()
 	if err != nil {
-		fmt.Println("couldn't write gobuster CGI file")
+		fmt.Println("Hit an issue")
+		fmt.Println(fmt.Sprint(err)+": "+stderr.String())
 		return
 	}
 	fmt.Println("Finished Gobuster CGI Scan")
@@ -243,28 +240,6 @@ func niktoScan(target string, port string, protocol string) {
 		return
 	}
 	fmt.Println("Finished Nikto Scan")
-	return
-}
-
-func vhostScan(target string, port string, protocol string) {
-	var (
-		cmdOut []byte
-		err error
-	)
-	path := filepath.Join("./targets", target, "scans", target+"_"+port+"_vhost.txt")
-	cmd := "wfuzz"
-	args := []string{"-h", protocol + "://FUZZ." + target + ":" + port}
-	fmt.Printf("Starting the following scan: %s %s\n", cmd, strings.Join(args[:], " "))
-	if err = exec.Command(cmd, args...).Run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return
-	}
-	err = ioutil.WriteFile(path, cmdOut, 0777)
-	if err != nil {
-		fmt.Println("couldn't write vhost file")
-		return
-	}
-	fmt.Println("Finished vhost Scan")
 	return
 }
 
